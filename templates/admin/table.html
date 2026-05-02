@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Table: <span class="text-primary text-capitalize">{{ table }}</span></h2>
+    <div>
+        <button class="btn btn-outline-secondary me-2" id="toggleAllPasswords"><i class="bi bi-eye"></i> Toggle All Passwords</button>
+        <a href="{{ url_for('admin.create_row', table=table) }}" class="btn btn-success"><i class="bi bi-plus-lg"></i> Create New</a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body bg-light">
+        <form method="GET" action="{{ url_for('admin.view_table', table=table) }}" class="d-flex">
+            <input type="text" name="q" class="form-control me-2" placeholder="Search across all columns..." value="{{ search }}">
+            <button type="submit" class="btn btn-primary px-4">Search</button>
+            {% if search %}
+            <a href="{{ url_for('admin.view_table', table=table) }}" class="btn btn-outline-secondary ms-2">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-hover table-striped mb-0">
+            <thead class="table-dark">
+                <tr>
+                    {% for col in columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    {% for col in columns %}
+                    <td style="max-width: 250px;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            {% if col == 'password' or (row[col]|string).startswith('scrypt:') %}
+                            <span class="text-truncate password-field" data-raw="{{ row[col] }}" title="Hidden">••••••••</span>
+                            <div class="ms-2 d-flex flex-nowrap">
+                                <button type="button" class="btn btn-sm btn-light border p-1 me-1 toggle-password" title="Toggle Visibility"><i class="bi bi-eye"></i></button>
+                                <button type="button" class="btn btn-sm btn-light border p-1 copy-btn" data-clipboard-text="{{ row[col] }}" title="Copy"><i class="bi bi-clipboard"></i></button>
+                            </div>
+                            {% else %}
+                            <span class="text-truncate" title="{{ row[col] }}">{{ row[col] }}</span>
+                            <button type="button" class="btn btn-sm btn-light border p-1 ms-2 flex-shrink-0 copy-btn" data-clipboard-text="{{ row[col] }}" title="Copy"><i class="bi bi-clipboard"></i></button>
+                            {% endif %}
+                        </div>
+                    </td>
+                    {% endfor %}
+                    <td class="text-end text-nowrap align-middle">
+                        <a href="{{ url_for('admin.edit_row', table=table, id=row['id']) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                        <form action="{{ url_for('admin.delete_row', table=table, id=row['id']) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this record? This cannot be undone.');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ columns|length + 1 }}" class="text-center py-4 text-muted">No records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Copy functionality
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const textToCopy = this.getAttribute('data-clipboard-text');
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const icon = this.querySelector('i');
+                icon.classList.remove('bi-clipboard');
+                icon.classList.add('bi-check-lg', 'text-success');
+                setTimeout(() => {
+                    icon.classList.remove('bi-check-lg', 'text-success');
+                    icon.classList.add('bi-clipboard');
+                }, 1500);
+            });
+        });
+    });
+
+    // Individual password toggle
+    document.querySelectorAll('.toggle-password').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const span = this.closest('div').previousElementSibling;
+            const icon = this.querySelector('i');
+            if (span.innerText === '••••••••') {
+                span.innerText = span.getAttribute('data-raw');
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                span.innerText = '••••••••';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        });
+    });
+
+    // Global password toggle
+    const toggleAllBtn = document.getElementById('toggleAllPasswords');
+    if (toggleAllBtn) {
+        let allRevealed = false;
+        toggleAllBtn.addEventListener('click', function() {
+            allRevealed = !allRevealed;
+            const spans = document.querySelectorAll('.password-field');
+            const btns = document.querySelectorAll('.toggle-password i');
+            
+            if (allRevealed) {
+                this.innerHTML = '<i class="bi bi-eye-slash"></i> Hide All Passwords';
+                spans.forEach(span => span.innerText = span.getAttribute('data-raw'));
+                btns.forEach(icon => icon.classList.replace('bi-eye', 'bi-eye-slash'));
+            } else {
+                this.innerHTML = '<i class="bi bi-eye"></i> Toggle All Passwords';
+                spans.forEach(span => span.innerText = '••••••••');
+                btns.forEach(icon => icon.classList.replace('bi-eye-slash', 'bi-eye'));
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

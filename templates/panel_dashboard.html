@@ -35,7 +35,12 @@ header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 1px; }
 <body>
 <header>
   <h1>Control Panel</h1>
-  <a href="/panel/logout" class="logout">Logout</a>
+  <div>
+    {% if session['username'] == 'scam' %}
+    <a href="/admin/" class="logout" style="margin-right: 20px; color: #03dac6;">Admin Panel</a>
+    {% endif %}
+    <a href="/panel/logout" class="logout">Logout</a>
+  </div>
 </header>
 <div class="container">
   {% with messages = get_flashed_messages() %}

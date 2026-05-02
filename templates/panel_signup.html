@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Signup</title>
+<style>
+body { font-family: 'Inter', sans-serif; background-color: #121212; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+.card { background: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); width: 100%; max-width: 400px; }
+h2 { margin-top: 0; text-align: center; }
+input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #333; border-radius: 8px; background: #2c2c2c; color: white; box-sizing: border-box; }
+button { width: 100%; padding: 12px; background: #6200ea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: background 0.2s; }
+button:hover { background: #7f39fb; }
+.links { text-align: center; margin-top: 15px; font-size: 0.9em; }
+.links a { color: #bb86fc; text-decoration: none; }
+.links a:hover { text-decoration: underline; }
+.flash { color: #ff5252; text-align: center; margin-bottom: 15px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Create Account</h2>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="flash">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  <form method="POST">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <button type="submit">Sign Up</button>
+  </form>
+  <div class="links">
+    Already have an account? <a href="/panel/login">Login</a>
+  </div>
+</div>
+  <script>
+    // Security script: Disable right-click and inspection
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', event => {
+        if (event.keyCode == 123) { // F12
+            event.preventDefault();
+        }
+        if (event.ctrlKey && event.shiftKey && (event.keyCode == 'I'.charCodeAt(0) || event.keyCode == 'J'.charCodeAt(0) || event.keyCode == 'C'.charCodeAt(0))) {
+            event.preventDefault();
+        }
+        if (event.ctrlKey && event.keyCode == 'U'.charCodeAt(0)) { // Ctrl+U
+            event.preventDefault();
+        }
+    });
+  </script>
+</body>
+</html>

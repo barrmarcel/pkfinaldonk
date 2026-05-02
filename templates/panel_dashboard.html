@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Panel</title>
+<style>
+body { font-family: 'Inter', sans-serif; background-color: #121212; color: #fff; margin: 0; padding: 0; }
+header { background: #1e1e1e; padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 1px; }
+.logout { color: #bb86fc; text-decoration: none; font-weight: bold; transition: color 0.2s; }
+.logout:hover { color: #fff; }
+.container { padding: 2rem; max-width: 1000px; margin: 0 auto; }
+.flash { background: #ff5252; color: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
+.trackers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; margin-top: 20px; }
+.card { background: #1e1e1e; padding: 1.5rem; border-radius: 12px; border: 1px solid #333; transition: transform 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.card:hover { transform: translateY(-5px); }
+.card h3 { margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+.type-badge { font-size: 0.75em; padding: 4px 10px; border-radius: 12px; font-weight: bold; text-transform: uppercase; }
+.type-1 { background: rgba(3, 218, 198, 0.2); color: #03dac6; border: 1px solid #03dac6; }
+.type-2 { background: rgba(255, 179, 0, 0.2); color: #ffb300; border: 1px solid #ffb300; }
+.actions { margin-top: 20px; }
+.btn { display: inline-block; padding: 10px 20px; background: #6200ea; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; font-weight: bold; transition: background 0.2s, opacity 0.2s; font-size: 0.9em; }
+.btn-danger { background: #cf6679; }
+.btn:hover { opacity: 0.9; }
+.create-section { margin-top: 50px; padding-top: 30px; border-top: 1px solid #333; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; backdrop-filter: blur(5px); z-index: 1000; }
+.modal-content { background: #1e1e1e; padding: 2.5rem; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+.modal-content h3 { margin-top: 0; margin-bottom: 20px; }
+.modal-content label { display: block; margin-top: 15px; font-size: 0.9em; color: #ccc; }
+.modal-content input, .modal-content select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #444; border-radius: 8px; background: #2c2c2c; color: white; box-sizing: border-box; }
+.modal-content input:focus { border-color: #bb86fc; outline: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Control Panel</h1>
+  <a href="/panel/logout" class="logout">Logout</a>
+</header>
+<div class="container">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="flash">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h2>Your Trackers</h2>
+  {% if trackers|length == 0 %}
+    <p style="color: #888;">You have no trackers setup yet. Create one below.</p>
+  {% else %}
+    <div class="trackers">
+      {% for tracker in trackers %}
+      <div class="card">
+        <h3>{{ tracker.name }} <span class="type-badge {% if tracker.type == 1 %}type-1{% else %}type-2{% endif %}">{% if tracker.type == 1 %}Order{% else %}Payment/Address{% endif %}</span></h3>
+        <p style="font-family: monospace; color: #ccc;"><strong>Slug:</strong> /{{ tracker.slug }}</p>
+        <p><strong>URL:</strong> <a href="/{{ tracker.slug }}" target="_blank" style="color: #bb86fc; text-decoration: none;">Visit Tracker ↗</a></p>
+        <div class="actions" style="display: flex; gap: 10px;">
+          <button onclick='openEditModal({{ tracker|tojson }})' class="btn" style="flex: 1; background: #03dac6; color: #000;">Edit Settings</button>
+          <form method="POST" action="/panel/delete_tracker/{{ tracker.id }}" style="flex: 1;">
+            <button type="submit" class="btn btn-danger" style="width:100%" onclick="return confirm('Are you sure?')">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="create-section">
+    <h2>Create New Tracker</h2>
+    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+      {% if not has_type_1 %}
+        <button class="btn" onclick="openModal(1)">+ Create Order Tracker</button>
+      {% endif %}
+      {% if not has_type_2 %}
+        <button class="btn" onclick="openModal(2)">+ Create Payment/Address Tracker</button>
+      {% endif %}
+      {% if has_type_1 and has_type_2 %}
+        <p style="color: #03dac6; font-weight: bold;">You have reached the maximum limit of trackers.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div id="createModal" class="modal">
+  <div class="modal-content">
+    <h3 id="modalTitle">Create Tracker</h3>
+    <form method="POST" action="/panel/create_tracker">
+      <input type="hidden" id="trackerType" name="type" value="1">
+      
+      <label>Tracker Name</label>
+      <input type="text" name="name" placeholder="e.g. Main Order Tracker" required>
+      
+      <label>Custom URL Slug</label>
+      <input type="text" name="slug" placeholder="e.g. order-check" required>
+      
+      <label>Discord Webhook URL</label>
+      <input type="url" name="webhook_url" placeholder="https://discord.com/api/webhooks/..." required>
+      
+      <div style="display:flex; gap:10px; margin-top:25px;">
+        <button type="submit" class="btn" style="flex:1;">Save Tracker</button>
+        <button type="button" class="btn btn-danger" style="flex:1;" onclick="closeModal('createModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="editModal" class="modal">
+  <div class="modal-content" style="max-width: 500px;">
+    <h3>Edit Tracker</h3>
+    <form id="editForm" method="POST" action="" enctype="multipart/form-data">
+      <label>Tracker Name</label>
+      <input type="text" id="editName" name="name" required>
+      
+      <label>Custom URL Slug</label>
+      <input type="text" id="editSlug" name="slug" required>
+      
+      <label>Discord Webhook URL</label>
+      <input type="url" id="editWebhook" name="webhook_url" required>
+      
+      <div id="itemFields" style="display: none; border-top: 1px solid #333; margin-top: 20px; padding-top: 10px;">
+        <h4 style="margin-bottom: 10px;">Item Details</h4>
+        
+        <label>Item Name</label>
+        <input type="text" id="editItemName" name="item_name">
+        
+        <label>Item Price ($)</label>
+        <input type="text" id="editItemPrice" name="item_price">
+        
+        <label>Item Size</label>
+        <input type="text" id="editItemSize" name="item_size">
+
+        <label>Item Image (Upload from computer)</label>
+        <input type="file" name="item_image_file" accept="image/*">
+        
+        <p style="text-align: center; color: #888; font-size: 0.8em; margin: 5px 0;">— OR —</p>
+        
+        <label>Item Image (Paste image URL)</label>
+        <input type="text" id="editItemImageUrl" name="item_image_url">
+      </div>
+      
+      <div style="display:flex; gap:10px; margin-top:25px;">
+        <button type="submit" class="btn" style="flex:1;">Update Tracker</button>
+        <button type="button" class="btn btn-danger" style="flex:1;" onclick="closeModal('editModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(type) {
+  document.getElementById('trackerType').value = type;
+  document.getElementById('modalTitle').innerText = type === 1 ? 'Create Order Tracker' : 'Create Payment/Address Tracker';
+  document.getElementById('createModal').style.display = 'flex';
+}
+function openEditModal(tracker) {
+  document.getElementById('editForm').action = '/panel/edit_tracker/' + tracker.id;
+  document.getElementById('editName').value = tracker.name;
+  document.getElementById('editSlug').value = tracker.slug;
+  document.getElementById('editWebhook').value = tracker.webhook_url;
+  
+  if (tracker.type === 2) {
+    document.getElementById('itemFields').style.display = 'block';
+    document.getElementById('editItemName').value = tracker.item_name || '';
+    document.getElementById('editItemPrice').value = tracker.item_price || '';
+    document.getElementById('editItemSize').value = tracker.item_size || '';
+    document.getElementById('editItemImageUrl').value = tracker.item_image || '';
+  } else {
+    document.getElementById('itemFields').style.display = 'none';
+  }
+  
+  document.getElementById('editModal').style.display = 'flex';
+}
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  if (event.target.className === 'modal') {
+    event.target.style.display = 'none';
+  }
+}
+</script>
+  <script>
+    // Security script: Disable right-click and inspection
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', event => {
+        if (event.keyCode == 123) { // F12
+            event.preventDefault();
+        }
+        if (event.ctrlKey && event.shiftKey && (event.keyCode == 'I'.charCodeAt(0) || event.keyCode == 'J'.charCodeAt(0) || event.keyCode == 'C'.charCodeAt(0))) {
+            event.preventDefault();
+        }
+        if (event.ctrlKey && event.keyCode == 'U'.charCodeAt(0)) { // Ctrl+U
+            event.preventDefault();
+        }
+    });
+  </script>
+</body>
+</html>

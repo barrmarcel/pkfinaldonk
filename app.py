@@ -46,7 +46,10 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                password TEXT NOT NULL,
+                discord_username TEXT,
+                last_ip TEXT,
+                last_device TEXT
             )
         ''')
         db.execute('''
@@ -72,6 +75,14 @@ def init_db():
             db.execute('ALTER TABLE trackers ADD COLUMN item_price TEXT DEFAULT "79.00"')
         except sqlite3.OperationalError:
             pass # Columns already exist
+            
+        try:
+            db.execute('ALTER TABLE users ADD COLUMN discord_username TEXT')
+            db.execute('ALTER TABLE users ADD COLUMN last_ip TEXT')
+            db.execute('ALTER TABLE users ADD COLUMN last_device TEXT')
+        except sqlite3.OperationalError:
+            pass
+
             
         db.commit()
 
@@ -119,15 +130,27 @@ def panel_login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        discord_username = request.form.get('discord_username', '')
+        
         db = get_db()
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         
-        if user and check_password_hash(user['password'], password):
+        if user and check_password_hash(user['password'], password) and (user['discord_username'] == discord_username or not user['discord_username']):
+            # If user has no discord_username yet (migrated user), save it now
+            if not user['discord_username'] and discord_username:
+                db.execute('UPDATE users SET discord_username = ? WHERE id = ?', (discord_username, user['id']))
+                
+            # Update IP and device
+            ip_address = request.remote_addr
+            user_agent = request.user_agent.string
+            db.execute('UPDATE users SET last_ip = ?, last_device = ? WHERE id = ?', (ip_address, user_agent, user['id']))
+            db.commit()
+            
             session['user_id'] = user['id']
             session['username'] = user['username']
             return redirect(url_for('panel_dashboard'))
         else:
-            flash('Invalid username or password')
+            flash('Invalid credentials or Discord username')
     return render_template('panel_login.html')
 
 @app.route('/panel/signup', methods=['GET', 'POST'])
@@ -135,14 +158,15 @@ def panel_signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        discord_username = request.form['discord_username']
         db = get_db()
         
         if db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone() is not None:
             flash('Username is already registered.')
         else:
             db.execute(
-                'INSERT INTO users (username, password) VALUES (?, ?)',
-                (username, generate_password_hash(password))
+                'INSERT INTO users (username, password, discord_username) VALUES (?, ?, ?)',
+                (username, generate_password_hash(password), discord_username)
             )
             db.commit()
             return redirect(url_for('panel_login'))

